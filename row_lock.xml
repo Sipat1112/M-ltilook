@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="horizontal" android:gravity="center_vertical"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:padding="5dp">
+    <TextView android:id="@+id/number" android:text="1" android:textStyle="bold" android:textSize="17sp"
+        android:gravity="center" android:layout_width="40dp" android:layout_height="48dp"/>
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+        android:hint="PIN (2–8 digits)" android:endIconMode="password_toggle">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/pin" android:inputType="numberPassword"
+            android:maxLength="8" android:singleLine="true"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
+    </com.google.android.material.textfield.TextInputLayout>
+    <ImageButton android:id="@+id/delete" android:src="@android:drawable/ic_menu_delete"
+        android:background="?attr/selectableItemBackgroundBorderless" android:layout_width="48dp" android:layout_height="48dp"/>
+</LinearLayout>

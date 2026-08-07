@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">MultiLock</string>
+    <string name="accessibility_description">Detects when a protected app comes to the foreground and shows your configured PIN locks.</string>
+</resources>

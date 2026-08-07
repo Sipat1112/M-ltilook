@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical" android:padding="20dp" android:background="@color/background"
+    android:layout_width="match_parent" android:layout_height="match_parent">
+    <TextView android:id="@+id/appName" android:textSize="27sp" android:textStyle="bold"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+    <TextView android:text="Create the PIN sequence in the order it must be entered."
+        android:textColor="#6B6B78" android:layout_marginTop="4dp"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+        android:layout_marginTop="15dp">
+        <LinearLayout android:id="@+id/lockContainer" android:orientation="vertical"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
+    </ScrollView>
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/addLock" android:text="+  Add another lock"
+        android:layout_width="match_parent" android:layout_height="54dp"/>
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/save" android:text="Save protection"
+        android:layout_marginTop="8dp" android:layout_width="match_parent" android:layout_height="54dp"/>
+</LinearLayout>

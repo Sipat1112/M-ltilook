@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical" android:padding="18dp" android:background="@color/background"
+    android:layout_width="match_parent" android:layout_height="match_parent">
+    <TextView android:text="Choose an app" android:textStyle="bold" android:textSize="27sp"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+    <EditText android:id="@+id/search" android:hint="Search apps..."
+        android:singleLine="true" android:layout_marginTop="14dp"
+        android:layout_width="match_parent" android:layout_height="55dp"/>
+    <ListView android:id="@+id/appList" android:divider="@android:color/transparent"
+        android:dividerHeight="8dp" android:layout_marginTop="12dp"
+        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"/>
+</LinearLayout>

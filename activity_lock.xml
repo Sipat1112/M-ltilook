@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical" android:gravity="center_horizontal"
+    android:padding="28dp" android:background="@color/background"
+    android:layout_width="match_parent" android:layout_height="match_parent">
+    <ImageView android:src="@drawable/ic_lock" android:layout_marginTop="45dp"
+        android:layout_width="70dp" android:layout_height="70dp"/>
+    <TextView android:id="@+id/appName" android:text="Protected app"
+        android:textSize="25sp" android:textStyle="bold" android:layout_marginTop="20dp"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+    <TextView android:id="@+id/step" android:text="Lock 1 of 3"
+        android:textSize="15sp" android:textColor="#6B6B78" android:layout_marginTop="6dp"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+    <TextView android:text="Enter the PIN to continue"
+        android:textSize="16sp" android:layout_marginTop="28dp"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/pinLayout" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="14dp" android:hint="PIN" android:endIconMode="password_toggle">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/pin" android:inputType="numberPassword" android:maxLength="8"
+            android:singleLine="true" android:gravity="center" android:textSize="22sp"
+            android:layout_width="match_parent" android:layout_height="58dp"/>
+    </com.google.android.material.textfield.TextInputLayout>
+    <TextView android:id="@+id/error" android:textColor="#B3261E" android:visibility="gone"
+        android:layout_marginTop="8dp" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+    <com.google.android.material.button.MaterialButton android:id="@+id/unlock"
+        android:text="Continue" android:layout_marginTop="20dp"
+        android:layout_width="match_parent" android:layout_height="56dp"/>
+</LinearLayout>
