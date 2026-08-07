@@ -1,0 +1,976 @@
+name: MultiLock APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Create Project
+        shell: bash
+        run: |
+          rm -rf app gradle build.gradle settings.gradle gradle.properties
+
+          mkdir -p app/src/main/java/com/multilock/app
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/xml
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "MultiLock"
+          include(":app")
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.multilock.app'
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId 'com.multilock.app'
+                  minSdk 23
+                  targetSdk 35
+                  versionCode 1
+                  versionName '1.0'
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.7.0'
+              implementation 'androidx.biometric:biometric:1.1.0'
+              implementation 'com.google.android.material:material:1.12.0'
+          }
+          EOF
+
+          cat > app/src/main/res/values/strings.xml <<'EOF'
+          <resources>
+              <string name="app_name">MultiLock</string>
+              <string name="accessibility_description">MultiLock app protection service</string>
+          </resources>
+          EOF
+
+          cat > app/src/main/res/values/colors.xml <<'EOF'
+          <resources>
+              <color name="black">#000000</color>
+              <color name="white">#FFFFFF</color>
+          </resources>
+          EOF
+
+          cat > app/src/main/res/values/themes.xml <<'EOF'
+          <resources>
+              <style name="Theme.MultiLock" parent="Theme.Material3.DayNight.NoActionBar">
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:windowActionModeOverlay">true</item>
+                  <item name="android:navigationBarColor">@color/black</item>
+                  <item name="android:statusBarColor">@color/black</item>
+              </style>
+          </resources>
+          EOF
+
+          cat > app/src/main/res/xml/accessibility_service_config.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <accessibility-service
+              xmlns:android="http://schemas.android.com/apk/res/android"
+              android:accessibilityEventTypes="typeWindowStateChanged"
+              android:accessibilityFeedbackType="feedbackGeneric"
+              android:notificationTimeout="100"
+              android:canRetrieveWindowContent="false"
+              android:description="@string/accessibility_description" />
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
+              <application
+                  android:allowBackup="false"
+                  android:label="@string/app_name"
+                  android:theme="@style/Theme.MultiLock"
+                  android:excludeFromRecents="false">
+
+                  <activity
+                      android:name=".LockActivity"
+                      android:exported="false"
+                      android:excludeFromRecents="true"
+                      android:launchMode="singleTask" />
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+
+                  </activity>
+
+                  <service
+                      android:name=".AppLockAccessibilityService"
+                      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+                      android:exported="false">
+
+                      <intent-filter>
+                          <action android:name="android.accessibilityservice.AccessibilityService" />
+                      </intent-filter>
+
+                      <meta-data
+                          android:name="android.accessibilityservice"
+                          android:resource="@xml/accessibility_service_config" />
+
+                  </service>
+
+              </application>
+
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/multilock/app/Security.java <<'EOF'
+          package com.multilock.app;
+
+          import java.nio.charset.StandardCharsets;
+          import java.security.MessageDigest;
+
+          public class Security {
+
+              public static String hash(String value) {
+                  try {
+                      MessageDigest md = MessageDigest.getInstance("SHA-256");
+                      byte[] bytes = md.digest(
+                              value.getBytes(StandardCharsets.UTF_8)
+                      );
+
+                      StringBuilder result = new StringBuilder();
+
+                      for (byte b : bytes) {
+                          result.append(String.format("%02x", b));
+                      }
+
+                      return result.toString();
+
+                  } catch (Exception e) {
+                      return "";
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/multilock/app/MainActivity.java <<'EOF'
+          package com.multilock.app;
+
+          import android.app.Activity;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.content.pm.ApplicationInfo;
+          import android.content.pm.PackageInfo;
+          import android.content.pm.PackageManager;
+          import android.graphics.Color;
+          import android.graphics.drawable.ColorDrawable;
+          import android.os.Bundle;
+          import android.provider.Settings;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.widget.Button;
+          import android.widget.CheckBox;
+          import android.widget.EditText;
+          import android.widget.LinearLayout;
+          import android.widget.ScrollView;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          import java.util.ArrayList;
+          import java.util.Collections;
+          import java.util.Comparator;
+          import java.util.HashSet;
+          import java.util.List;
+          import java.util.Set;
+
+          public class MainActivity extends Activity {
+
+              private SharedPreferences prefs;
+              private LinearLayout appList;
+              private List<AppItem> apps = new ArrayList<>();
+
+              private static final String PREFS = "multilock";
+              private static final String PIN = "pin_hash";
+              private static final String LOCKED = "locked_apps";
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+
+                  buildUI();
+              }
+
+              private TextView text(String value, float size) {
+                  TextView t = new TextView(this);
+                  t.setText(value);
+                  t.setTextSize(size);
+                  t.setTextColor(Color.WHITE);
+                  t.setPadding(25, 20, 25, 20);
+                  return t;
+              }
+
+              private Button button(String value) {
+                  Button b = new Button(this);
+                  b.setText(value);
+                  b.setTextSize(15);
+                  return b;
+              }
+
+              private void buildUI() {
+
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(25, 30, 25, 25);
+                  root.setBackgroundColor(Color.rgb(18,18,18));
+
+                  TextView title = text("🔐 MultiLock", 30);
+                  title.setGravity(Gravity.CENTER);
+
+                  TextView subtitle = text(
+                          "Protect your private apps",
+                          16
+                  );
+                  subtitle.setGravity(Gravity.CENTER);
+
+                  root.addView(title);
+                  root.addView(subtitle);
+
+                  EditText pin = new EditText(this);
+                  pin.setHint("New PIN (4-8 digits)");
+                  pin.setInputType(2);
+                  pin.setTextColor(Color.WHITE);
+                  pin.setHintTextColor(Color.GRAY);
+
+                  root.addView(pin);
+
+                  Button savePin = button("Save / Change PIN");
+                  root.addView(savePin);
+
+                  Button accessibility = button(
+                          "⚙ Enable App Lock Service"
+                  );
+                  root.addView(accessibility);
+
+                  Button selectAll = button("Select All");
+                  root.addView(selectAll);
+
+                  Button clearAll = button("Clear All");
+                  root.addView(clearAll);
+
+                  TextView listTitle = text(
+                          "Choose apps to lock:",
+                          20
+                  );
+                  root.addView(listTitle);
+
+                  ScrollView scroll = new ScrollView(this);
+
+                  appList = new LinearLayout(this);
+                  appList.setOrientation(LinearLayout.VERTICAL);
+
+                  scroll.addView(appList);
+                  root.addView(
+                          scroll,
+                          new LinearLayout.LayoutParams(
+                                  -1,
+                                  0,
+                                  1
+                          )
+                  );
+
+                  setContentView(root);
+
+                  savePin.setOnClickListener(v -> {
+
+                      String value = pin.getText().toString();
+
+                      if (value.length() < 4 || value.length() > 8) {
+                          Toast.makeText(
+                                  this,
+                                  "PIN must contain 4-8 digits",
+                                  Toast.LENGTH_SHORT
+                          ).show();
+                          return;
+                      }
+
+                      prefs.edit()
+                              .putString(PIN, Security.hash(value))
+                              .apply();
+
+                      Toast.makeText(
+                              this,
+                              "PIN saved successfully",
+                              Toast.LENGTH_SHORT
+                      ).show();
+                  });
+
+                  accessibility.setOnClickListener(v -> {
+                      try {
+                          startActivity(
+                                  new Intent(
+                                          Settings.ACTION_ACCESSIBILITY_SETTINGS
+                                  )
+                          );
+                      } catch (Exception e) {
+                          Toast.makeText(
+                                  this,
+                                  "Accessibility settings unavailable",
+                                  Toast.LENGTH_LONG
+                          ).show();
+                      }
+                  });
+
+                  selectAll.setOnClickListener(v -> {
+
+                      Set<String> selected = new HashSet<>();
+
+                      for (AppItem item : apps) {
+                          selected.add(item.packageName);
+                      }
+
+                      prefs.edit()
+                              .putStringSet(LOCKED, selected)
+                              .apply();
+
+                      buildAppList();
+                  });
+
+                  clearAll.setOnClickListener(v -> {
+
+                      prefs.edit()
+                              .putStringSet(
+                                      LOCKED,
+                                      new HashSet<>()
+                              )
+                              .apply();
+
+                      buildAppList();
+                  });
+
+                  loadApps();
+              }
+
+              private void loadApps() {
+
+                  PackageManager pm = getPackageManager();
+
+                  List<ApplicationInfo> installed =
+                          pm.getInstalledApplications(
+                                  PackageManager.GET_META_DATA
+                          );
+
+                  apps.clear();
+
+                  for (ApplicationInfo info : installed) {
+
+                      if (info.packageName.equals(getPackageName())) {
+                          continue;
+                      }
+
+                      boolean launchable =
+                              pm.getLaunchIntentForPackage(
+                                      info.packageName
+                              ) != null;
+
+                      if (!launchable) {
+                          continue;
+                      }
+
+                      String label =
+                              info.loadLabel(pm).toString();
+
+                      apps.add(
+                              new AppItem(
+                                      label,
+                                      info.packageName
+                              )
+                      );
+                  }
+
+                  Collections.sort(
+                          apps,
+                          Comparator.comparing(
+                                  a -> a.name.toLowerCase()
+                          )
+                  );
+
+                  buildAppList();
+              }
+
+              private void buildAppList() {
+
+                  if (appList == null) return;
+
+                  appList.removeAllViews();
+
+                  Set<String> selected =
+                          prefs.getStringSet(
+                                  LOCKED,
+                                  new HashSet<>()
+                          );
+
+                  for (AppItem item : apps) {
+
+                      CheckBox check = new CheckBox(this);
+
+                      check.setText(
+                              item.name + "\n" +
+                              item.packageName
+                      );
+
+                      check.setTextColor(Color.WHITE);
+                      check.setTextSize(15);
+                      check.setPadding(10, 15, 10, 15);
+
+                      check.setChecked(
+                              selected.contains(item.packageName)
+                      );
+
+                      check.setOnCheckedChangeListener(
+                              (button, checked) -> {
+
+                                  Set<String> current =
+                                          new HashSet<>(
+                                                  prefs.getStringSet(
+                                                          LOCKED,
+                                                          new HashSet<>()
+                                                  )
+                                          );
+
+                                  if (checked) {
+                                      current.add(
+                                              item.packageName
+                                      );
+                                  } else {
+                                      current.remove(
+                                              item.packageName
+                                      );
+                                  }
+
+                                  prefs.edit()
+                                          .putStringSet(
+                                                  LOCKED,
+                                                  current
+                                          )
+                                          .apply();
+                              }
+                      );
+
+                      appList.addView(check);
+                  }
+              }
+
+              private static class AppItem {
+
+                  String name;
+                  String packageName;
+
+                  AppItem(
+                          String name,
+                          String packageName
+                  ) {
+                      this.name = name;
+                      this.packageName = packageName;
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/multilock/app/LockActivity.java <<'EOF'
+          package com.multilock.app;
+
+          import android.app.Activity;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.graphics.Color;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.view.Gravity;
+          import android.widget.Button;
+          import android.widget.EditText;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          import androidx.biometric.BiometricManager;
+          import androidx.biometric.BiometricPrompt;
+          import androidx.core.content.ContextCompat;
+
+          import java.util.concurrent.Executor;
+
+          public class LockActivity extends Activity {
+
+              private EditText pinInput;
+              private Button unlockButton;
+              private int failedAttempts = 0;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  setFinishOnTouchOutside(false);
+
+                  buildUI();
+
+                  showBiometricIfAvailable();
+              }
+
+              private TextView text(
+                      String value,
+                      float size
+              ) {
+                  TextView t = new TextView(this);
+                  t.setText(value);
+                  t.setTextSize(size);
+                  t.setTextColor(Color.WHITE);
+                  t.setGravity(Gravity.CENTER);
+                  t.setPadding(20, 20, 20, 20);
+                  return t;
+              }
+
+              private void buildUI() {
+
+                  LinearLayout root =
+                          new LinearLayout(this);
+
+                  root.setOrientation(
+                          LinearLayout.VERTICAL
+                  );
+
+                  root.setGravity(Gravity.CENTER);
+                  root.setPadding(
+                          50,
+                          60,
+                          50,
+                          60
+                  );
+
+                  root.setBackgroundColor(
+                          Color.rgb(15,15,15)
+                  );
+
+                  TextView icon =
+                          text("🔒", 55);
+
+                  TextView title =
+                          text("MultiLock", 30);
+
+                  TextView info =
+                          text(
+                                  "This app is protected.\nEnter your PIN to continue.",
+                                  18
+                          );
+
+                  pinInput = new EditText(this);
+                  pinInput.setHint("PIN");
+                  pinInput.setInputType(2);
+                  pinInput.setTextColor(Color.WHITE);
+                  pinInput.setHintTextColor(Color.GRAY);
+                  pinInput.setGravity(Gravity.CENTER);
+
+                  unlockButton =
+                          new Button(this);
+
+                  unlockButton.setText(
+                          "Unlock"
+                  );
+
+                  Button biometric =
+                          new Button(this);
+
+                  biometric.setText(
+                          "🔐 Use Fingerprint / Biometric"
+                  );
+
+                  root.addView(icon);
+                  root.addView(title);
+                  root.addView(info);
+                  root.addView(pinInput);
+
+                  root.addView(
+                          unlockButton,
+                          new LinearLayout.LayoutParams(
+                                  -1,
+                                  -2
+                          )
+                  );
+
+                  root.addView(
+                          biometric,
+                          new LinearLayout.LayoutParams(
+                                  -1,
+                                  -2
+                          )
+                  );
+
+                  setContentView(root);
+
+                  unlockButton.setOnClickListener(
+                          v -> verifyPin()
+                  );
+
+                  biometric.setOnClickListener(
+                          v -> showBiometric()
+                  );
+              }
+
+              private void verifyPin() {
+
+                  String entered =
+                          pinInput.getText().toString();
+
+                  String saved =
+                          getSharedPreferences(
+                                  "multilock",
+                                  MODE_PRIVATE
+                          ).getString(
+                                  "pin_hash",
+                                  ""
+                          );
+
+                  if (saved.isEmpty()) {
+                      Toast.makeText(
+                              this,
+                              "PIN has not been configured",
+                              Toast.LENGTH_LONG
+                      ).show();
+                      return;
+                  }
+
+                  if (Security.hash(entered)
+                          .equals(saved)) {
+
+                      unlock();
+
+                  } else {
+
+                      failedAttempts++;
+
+                      pinInput.setText("");
+
+                      if (failedAttempts >= 3) {
+
+                          failedAttempts = 0;
+
+                          unlockButton.setEnabled(false);
+
+                          Toast.makeText(
+                                  this,
+                                  "Too many attempts. Wait 30 seconds.",
+                                  Toast.LENGTH_LONG
+                          ).show();
+
+                          new Handler().postDelayed(
+                                  () -> unlockButton.setEnabled(true),
+                                  30000
+                          );
+
+                      } else {
+
+                          Toast.makeText(
+                                  this,
+                                  "Wrong PIN",
+                                  Toast.LENGTH_SHORT
+                          ).show();
+                      }
+                  }
+              }
+
+              private void showBiometricIfAvailable() {
+
+                  BiometricManager manager =
+                          BiometricManager.from(this);
+
+                  int result =
+                          manager.canAuthenticate(
+                                  BiometricManager.Authenticators.BIOMETRIC_STRONG
+                                          | BiometricManager.Authenticators.BIOMETRIC_WEAK
+                          );
+
+                  if (result ==
+                          BiometricManager.BIOMETRIC_SUCCESS) {
+
+                      showBiometric();
+                  }
+              }
+
+              private void showBiometric() {
+
+                  Executor executor =
+                          ContextCompat.getMainExecutor(this);
+
+                  BiometricPrompt prompt =
+                          new BiometricPrompt(
+                                  this,
+                                  executor,
+                                  new BiometricPrompt.AuthenticationCallback() {
+
+                                      @Override
+                                      public void onAuthenticationSucceeded(
+                                              BiometricPrompt.AuthenticationResult result
+                                      ) {
+                                          super.onAuthenticationSucceeded(
+                                                  result
+                                          );
+
+                                          unlock();
+                                      }
+
+                                      @Override
+                                      public void onAuthenticationError(
+                                              int errorCode,
+                                              CharSequence errString
+                                      ) {
+                                          super.onAuthenticationError(
+                                                  errorCode,
+                                                  errString
+                                          );
+                                      }
+                                  }
+                          );
+
+                  BiometricPrompt.PromptInfo info =
+                          new BiometricPrompt.PromptInfo.Builder()
+                                  .setTitle("MultiLock")
+                                  .setSubtitle(
+                                          "Authenticate to unlock"
+                                  )
+                                  .setNegativeButtonText(
+                                          "Use PIN"
+                                  )
+                                  .build();
+
+                  prompt.authenticate(info);
+              }
+
+              private void unlock() {
+
+                  getSharedPreferences(
+                          "multilock",
+                          MODE_PRIVATE
+                  )
+                  .edit()
+                  .putLong(
+                          "unlock_until",
+                          System.currentTimeMillis()
+                                  + 30000
+                  )
+                  .apply();
+
+                  finish();
+              }
+
+              @Override
+              public void onBackPressed() {
+                  // Do nothing.
+                  // Back button cannot bypass the lock screen.
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/multilock/app/AppLockAccessibilityService.java <<'EOF'
+          package com.multilock.app;
+
+          import android.accessibilityservice.AccessibilityService;
+          import android.content.Intent;
+          import android.view.accessibility.AccessibilityEvent;
+
+          import java.util.HashSet;
+          import java.util.Set;
+
+          public class AppLockAccessibilityService
+                  extends AccessibilityService {
+
+              private String lastPackage = "";
+
+              @Override
+              public void onAccessibilityEvent(
+                      AccessibilityEvent event
+              ) {
+
+                  if (event == null) return;
+
+                  if (event.getEventType()
+                          != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                      return;
+                  }
+
+                  CharSequence pkg =
+                          event.getPackageName();
+
+                  if (pkg == null) return;
+
+                  String packageName =
+                          pkg.toString();
+
+                  if (packageName.equals(
+                          getPackageName()
+                  )) {
+                      return;
+                  }
+
+                  if (packageName.equals(
+                          "com.android.systemui"
+                  )) {
+                      return;
+                  }
+
+                  if (packageName.equals(
+                          "com.android.settings"
+                  )) {
+                      return;
+                  }
+
+                  if (packageName.equals(
+                          lastPackage
+                  )) {
+                      return;
+                  }
+
+                  lastPackage = packageName;
+
+                  Set<String> locked =
+                          getSharedPreferences(
+                                  "multilock",
+                                  MODE_PRIVATE
+                          ).getStringSet(
+                                  "locked_apps",
+                                  new HashSet<>()
+                          );
+
+                  if (!locked.contains(packageName)) {
+                      return;
+                  }
+
+                  String pin =
+                          getSharedPreferences(
+                                  "multilock",
+                                  MODE_PRIVATE
+                          ).getString(
+                                  "pin_hash",
+                                  ""
+                          );
+
+                  if (pin.isEmpty()) {
+                      return;
+                  }
+
+                  long unlockUntil =
+                          getSharedPreferences(
+                                  "multilock",
+                                  MODE_PRIVATE
+                          ).getLong(
+                                  "unlock_until",
+                                  0
+                          );
+
+                  if (System.currentTimeMillis()
+                          < unlockUntil) {
+                      return;
+                  }
+
+                  Intent intent =
+                          new Intent(
+                                  this,
+                                  LockActivity.class
+                          );
+
+                  intent.addFlags(
+                          Intent.FLAG_ACTIVITY_NEW_TASK
+                                  | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                                  | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
+                  );
+
+                  intent.putExtra(
+                          "package",
+                          packageName
+                  );
+
+                  startActivity(intent);
+              }
+
+              @Override
+              public void onInterrupt() {
+              }
+          }
+          EOF
+
+      - name: Download Gradle
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.9-bin.zip
+          unzip -q gradle-8.9-bin.zip
+
+      - name: Build APK
+        run: |
+          export PATH="$PWD/gradle-8.9/bin:$PATH"
+          gradle assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MultiLock-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
